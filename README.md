@@ -1,4 +1,4 @@
-# Stormy Weather
+Stormy Weather
 Una web application per la consultazione meteo in tempo reale, ottimizzata per il territorio italiano. Semplice, veloce e pronta per il deploy.
 
 Nota: il progetto è attualmente disponibile in lingua italiana.
