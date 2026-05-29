@@ -6,7 +6,7 @@ Live at: [stormy-frontend.onrender.com](https://stormy-frontend.onrender.com)
 
 > **Note:** The backend is currently not in use in production. The live version calls the Open-Meteo API directly from the frontend due to hosting limitations (IP blocks on the free tier). The FastAPI backend is fully functional locally and is intended to be the production data layer once a stable hosting solution is in place.
 
-Developed by Friciu Robert Gabriel as a school project, May 2026.
+
 
 ## About
 
