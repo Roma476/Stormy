@@ -7,16 +7,8 @@ const daysIT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 const forecastDays = Array.from({ length: 7 }, (_, i) => {
   const date = new Date()
   date.setDate(date.getDate() + i)
-
-  const label = date.toLocaleDateString('it-IT', {
-    day: '2-digit',
-    month: '2-digit',
-  })
-
-  return {
-    label,
-    day: daysIT[date.getDay()],
-  }
+  const label = date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })
+  return { label, day: daysIT[date.getDay()] }
 })
 
 const emptyValue = '--'
@@ -34,130 +26,138 @@ const citiesList = [
   'Bologna', 'Firenze', 'Bari', 'Venezia', 'Verona', 'Cagliari',
 ]
 
+const WMO_DESCRIPTIONS = {
+  0: 'Cielo sereno', 1: 'Prevalentemente sereno', 2: 'Parzialmente nuvoloso',
+  3: 'Coperto', 45: 'Nebbia', 48: 'Nebbia con brina', 51: 'Pioggerella leggera',
+  53: 'Pioggerella moderata', 55: 'Pioggerella intensa', 61: 'Pioggia leggera',
+  63: 'Pioggia moderata', 65: 'Pioggia intensa', 71: 'Neve leggera',
+  73: 'Neve moderata', 75: 'Neve intensa', 77: 'Granuli di neve',
+  80: 'Rovesci leggeri', 81: 'Rovesci moderati', 82: 'Rovesci violenti',
+  85: 'Rovesci di neve', 86: 'Rovesci di neve intensi', 95: 'Temporale',
+  96: 'Temporale con grandine leggera', 99: 'Temporale con grandine intensa',
+}
+
+const wmoDesc = (code) => WMO_DESCRIPTIONS[code] || 'Condizioni sconosciute'
+
+const OPEN_METEO = 'https://api.open-meteo.com/v1/forecast'
+const CURRENT_PARAMS = 'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,surface_pressure,weather_code,is_day'
+const DAILY_PARAMS = 'temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code'
+
+const FEATURED_CITIES = [
+  { id: 'milano', name: 'Milano', latitude: 45.4654, longitude: 9.1859, region: 'Lombardia' },
+  { id: 'roma', name: 'Roma', latitude: 41.8955, longitude: 12.4823, region: 'Lazio' },
+  { id: 'napoli', name: 'Napoli', latitude: 40.8522, longitude: 14.2681, region: 'Campania' },
+  { id: 'torino', name: 'Torino', latitude: 45.0703, longitude: 7.6869, region: 'Piemonte' },
+]
+
+const MACRO_AREAS = [
+  { id: 'nord', name: 'Nord Italia', latitude: 45.4654, longitude: 10.9333, region: 'Nord' },
+  { id: 'centro', name: 'Centro Italia', latitude: 43.7228, longitude: 11.9668, region: 'Centro' },
+  { id: 'sud', name: 'Sud Italia', latitude: 40.4958, longitude: 16.0002, region: 'Sud' },
+]
+
+async function fetchWeather(lat, lon) {
+  const url = `${OPEN_METEO}?latitude=${lat}&longitude=${lon}&timezone=Europe/Rome&current=${CURRENT_PARAMS}&daily=${DAILY_PARAMS}&forecast_days=7&wind_speed_unit=kmh&precipitation_unit=mm`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Errore Open-Meteo')
+  return res.json()
+}
+
+function parseCity(data, meta) {
+  const c = data.current
+  return {
+    id: meta.id,
+    name: meta.name,
+    region: meta.region,
+    temperature: c.temperature_2m,
+    apparent_temperature: c.apparent_temperature,
+    humidity: c.relative_humidity_2m,
+    wind_speed: c.wind_speed_10m,
+    wind_direction: c.wind_direction_10m,
+    pressure: c.surface_pressure,
+    weather_code: c.weather_code,
+    weather_description: wmoDesc(c.weather_code),
+    temp_max: data.daily.temperature_2m_max[0],
+    temp_min: data.daily.temperature_2m_min[0],
+  }
+}
+
 function HomePage() {
   const [citiesData, setCitiesData] = useState([])
   const [areasData, setAreasData] = useState([])
   const [mainCity, setMainCity] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeTool, setActiveTool] = useState(null)
-  
   const [searchQuery, setSearchQuery] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'
-
-  // Caricamento iniziale dei dati della dashboard
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        const response = await fetch(`${baseUrl}/dashboard/summary`)
-        if (!response.ok) throw new Error('Errore nel recupero dati dal server')
-        
-        const data = await response.json()
-        setCitiesData(data.cities || [])
-        setAreasData(data.areas || [])
-        
-        if (data.cities && data.cities.length > 0) {
-          const milano = data.cities.find(c => c.name.toLowerCase() === 'milano') || data.cities[0]
+        const [citiesResults, areasResults] = await Promise.allSettled([
+          Promise.all(FEATURED_CITIES.map(c => fetchWeather(c.latitude, c.longitude).then(d => parseCity(d, c)))),
+          Promise.all(MACRO_AREAS.map(a => fetchWeather(a.latitude, a.longitude).then(d => parseCity(d, a)))),
+        ])
+
+        const cities = citiesResults.status === 'fulfilled' ? citiesResults.value : []
+        const areas = areasResults.status === 'fulfilled' ? areasResults.value : []
+
+        setCitiesData(cities)
+        setAreasData(areas)
+
+        if (cities.length > 0) {
+          const milano = cities.find(c => c.id === 'milano') || cities[0]
           setMainCity(milano)
         }
-        setLoading(false)
       } catch (error) {
-        console.error('Errore API Dashboard:', error)
+        console.error('Errore dashboard:', error)
+      } finally {
         setLoading(false)
       }
     }
-
     fetchDashboardData()
-  }, [baseUrl])
+  }, [])
 
-  // Esegue la ricerca della città
-  // Esegue la ricerca della città gestendo correttamente la risposta del backend
   async function fetchCityWeather(cityName) {
     try {
-      const searchRes = await fetch(`${baseUrl}/search?q=${encodeURIComponent(cityName)}`)
-      if (!searchRes.ok) throw new Error('Errore nella ricerca della località')
-      
-      const searchData = await searchRes.json()
-      
-      // FIX CONTROLLO DATI: Gestisce sia se searchData è già un array, sia se contiene l'oggetto .results
-      let results = []
-      if (Array.isArray(searchData)) {
-        results = searchData
-      } else if (searchData && Array.isArray(searchData.results)) {
-        results = searchData.results
-      }
-      
-      if (results.length > 0) {
-        const targetCity = results[0]
-        
-        // Recupera il meteo usando lat, lon e il nome corretto della città
-        const weatherRes = await fetch(
-          `${baseUrl}/weather?lat=${targetCity.latitude}&lon=${targetCity.longitude}&name=${encodeURIComponent(targetCity.name)}`
-        )
-        if (!weatherRes.ok) throw new Error('Errore meteo')
-        
-        const weatherData = await weatherRes.json()
-        
-        // Aggiorna lo stato per la card Hero principale
-        setMainCity({
-          name: weatherData.city_name,
-          region: targetCity.region || targetCity.country || 'Italia',
-          temperature: weatherData.current.temperature,
-          weather_description: weatherData.current.weather_description,
-          wind_speed: weatherData.current.wind_speed,
-          humidity: weatherData.current.humidity,
-        })
-        return true
-      } else {
-        alert('Nessuna località trovata con questo nome.')
+      const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=it&format=json`)
+      const geoData = await geoRes.json()
+      if (!geoData.results || geoData.results.length === 0) {
+        alert('Nessuna località trovata.')
         return false
       }
+      const place = geoData.results[0]
+      const data = await fetchWeather(place.latitude, place.longitude)
+      const meta = { id: place.id, name: place.name, region: place.admin1 || place.country || 'Italia' }
+      setMainCity(parseCity(data, meta))
+      return true
     } catch (error) {
       console.error('Errore nel recupero dati:', error)
-      alert('Si è verificato un errore nel caricamento del meteo.')
+      alert('Errore nel caricamento del meteo.')
       return false
     }
   }
 
-  // Gestore del form di ricerca manuale
   async function handleSearch(e) {
     e.preventDefault()
     if (!searchQuery.trim()) return
-
-    setSearchLoading(true) // <--- Ora impostato correttamente a true all'avvio
+    setSearchLoading(true)
     await fetchCityWeather(searchQuery)
     setSearchQuery('')
     setSearchLoading(false)
   }
 
-  // Gestore dei click rapidi sulla lista in basso
   async function handleQuickSearch(e, cityName) {
-    e.preventDefault() // Blocca il jump dell'ancora che rompeva il flusso
+    e.preventDefault()
     setSearchLoading(true)
     await fetchCityWeather(cityName)
     setSearchLoading(false)
-    // Scollamento fluido verso l'alto per vedere il risultato
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleToolClick = async (toolName) => {
-    setActiveTool(toolName);
-    
-    // Esempio: se clicchi "Allerte", chiami un endpoint dedicato
-    if (toolName === "Allerte") {
-      try {
-        const response = await fetch(`${baseUrl}/allerte`);
-        const data = await response.json();
-        // Qui aggiorneresti lo stato per mostrare i dati reali nella modale
-        console.log("Dati allerte ricevuti:", data);
-      } catch (err) {
-        console.error("Errore nel caricamento allerte:", err);
-      }
-    }
-  };
-
-  
+  const handleToolClick = (toolName) => {
+    setActiveTool(toolName)
+  }
 
   return (
     <>
@@ -193,7 +193,7 @@ function HomePage() {
               </form>
             </div>
 
-            <article className="local-card" aria-label={`Meteo attuale`}>
+            <article className="local-card" aria-label="Meteo attuale">
               <div className="local-card-header">
                 <div>
                   <p className="kicker">Ora locale</p>
@@ -220,7 +220,7 @@ function HomePage() {
                 </div>
                 <div className="stat">
                   <small>Pressione</small>
-                  <strong>{emptyValue} hPa</strong>
+                  <strong>{mainCity ? Math.round(mainCity.pressure) : emptyValue} hPa</strong>
                 </div>
               </div>
             </article>
@@ -238,12 +238,12 @@ function HomePage() {
             </div>
 
             <div className="tabs" aria-label="Giorni previsione">
-                {forecastDays.map((day) => (
-                    <button className="tab-button" type="button" key={day.label}>
-                    <span>{day.day}</span>
-                    <strong>{day.label}</strong>
-                    </button>
-                ))}
+              {forecastDays.map((day) => (
+                <button className="tab-button" type="button" key={day.label}>
+                  <span>{day.day}</span>
+                  <strong>{day.label}</strong>
+                </button>
+              ))}
             </div>
 
             <div className="area-grid">
@@ -272,9 +272,9 @@ function HomePage() {
 
             {activeTool && (
               <div style={{
-                  position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-                  backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex',
-                  justifyContent: 'center', alignItems: 'center', zIndex: 99999
+                position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex',
+                justifyContent: 'center', alignItems: 'center', zIndex: 99999
               }} onClick={() => setActiveTool(null)}>
                 <div style={{
                   backgroundColor: 'white', padding: '50px', borderRadius: '20px',
@@ -285,16 +285,16 @@ function HomePage() {
                   <button onClick={() => setActiveTool(null)} style={{ padding: '10px 20px', cursor: 'pointer' }}>Chiudi</button>
                 </div>
               </div>
-        )}
+            )}
 
             <div className="forecast-grid">
               {loading ? (
                 <p>Caricamento città...</p>
               ) : (
                 citiesData.slice(0, 4).map((item) => (
-                  <article 
-                    className="forecast-card" 
-                    key={item.id} 
+                  <article
+                    className="forecast-card"
+                    key={item.id}
                     style={{ cursor: 'pointer' }}
                     onClick={() => setMainCity(item)}
                   >
@@ -319,9 +319,9 @@ function HomePage() {
 
           <div className="tools-grid">
             {tools.map((tool) => (
-              <div 
-                className="tool-card" 
-                key={tool.name} 
+              <div
+                className="tool-card"
+                key={tool.name}
                 onClick={() => handleToolClick(tool.name)}
                 style={{ cursor: 'pointer' }}
               >
@@ -343,8 +343,8 @@ function HomePage() {
 
           <div className="city-grid">
             {citiesList.map((city) => (
-              <a 
-                href="#previsioni" 
+              <a
+                href="#previsioni"
                 key={city}
                 onClick={(e) => handleQuickSearch(e, city)}
               >
