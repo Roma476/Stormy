@@ -4,8 +4,6 @@ Una web application per la consultazione meteo in tempo reale, ottimizzata per i
 
 > **Nota:** il progetto è attualmente disponibile in lingua italiana.
 
-Sviluppato da **[Tuo Nome]** come progetto **[tipo di progetto, es. personale/scolastico]**, **[Mese/Anno]**.
-
 ---
 
 ## Installazione e avvio
