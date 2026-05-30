@@ -305,7 +305,7 @@ function HomePage() {
                           type="button"
                           onClick={() => setSelectedDay(i)}
                           style={{
-                            minWidth: 80, flex: '0 0 auto', border: 'none', borderRadius: 10, padding: '10px 8px',
+                            flex: '1 1 0', minWidth: 0, border: 'none', borderRadius: 10, padding: '10px 8px',
                             cursor: 'pointer', textAlign: 'center',
                             background: isSelected ? '#0d75b8' : '#f5f9fc',
                             color: isSelected ? 'white' : '#122033',
