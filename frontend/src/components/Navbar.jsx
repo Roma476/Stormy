@@ -11,12 +11,11 @@ function Navbar() {
 
         <nav className="main-nav" aria-label="Navigazione principale">
           <a href="#previsioni">Previsioni</a>
-          <a href="#mappe">Aree</a>
           <a href="#strumenti">Strumenti</a>
-          <a href="#citta">Citta</a>
+          <a href="#citta">Città</a>
         </nav>
 
-        <div class="login-button"></div> {/* per spaziare (non toccare!)*/}
+        <div className="login-button"></div>
       </div>
     </header>
   )
