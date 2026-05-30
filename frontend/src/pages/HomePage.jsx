@@ -15,7 +15,7 @@ const forecastDays = Array.from({ length: 7 }, (_, i) => {
 const emptyValue = '--'
 
 const tools = [
-  { name: 'Radar', description: 'Osserva le condizioni meteorologiche in tempo reale.' },
+  { name: 'Satellite', description: 'Osserva nuvole e schiarite sull Italia.' },
   { name: 'Allerte', description: 'Segui le criticita previste nelle regioni.' },
   { name: 'Pollini', description: 'Consulta i livelli utili per le allergie.' },
   { name: 'Neve', description: 'Guarda quota neve e situazione in montagna.' },
@@ -57,8 +57,10 @@ const MACRO_AREAS = [
   { id: 'sud', name: 'Sud Italia', latitude: 40.4958, longitude: 16.0002, region: 'Sud' },
 ]
 
+const HOURLY_PARAMS = 'temperature_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,is_day'
+
 async function fetchWeather(lat, lon) {
-  const url = `${OPEN_METEO}?latitude=${lat}&longitude=${lon}&timezone=Europe/Rome&current=${CURRENT_PARAMS}&daily=${DAILY_PARAMS}&forecast_days=7&wind_speed_unit=kmh&precipitation_unit=mm`
+  const url = `${OPEN_METEO}?latitude=${lat}&longitude=${lon}&timezone=Europe/Rome&current=${CURRENT_PARAMS}&daily=${DAILY_PARAMS}&hourly=${HOURLY_PARAMS}&forecast_days=7&wind_speed_unit=kmh&precipitation_unit=mm`
   const res = await fetch(url)
   if (!res.ok) throw new Error('Errore Open-Meteo')
   return res.json()
@@ -83,6 +85,30 @@ function parseCity(data, meta) {
   }
 }
 
+const CDN = 'https://cdn.jsdelivr.net/npm/@meteocons/svg/fill'
+
+function wmoIcon(code, isDay = 1) {
+  const day = isDay ? 'day' : 'night'
+  if (code === 0) return `${CDN}/clear-${day}.svg`
+  if (code === 1) return `${CDN}/partly-cloudy-${day}.svg`
+  if (code === 2) return `${CDN}/partly-cloudy-${day}.svg`
+  if (code === 3) return `${CDN}/overcast-${day}.svg`
+  if (code === 45 || code === 48) return `${CDN}/fog-${day}.svg`
+  if (code >= 51 && code <= 55) return `${CDN}/drizzle.svg`
+  if (code >= 61 && code <= 65) return `${CDN}/rain.svg`
+  if (code >= 71 && code <= 77) return `${CDN}/snow.svg`
+  if (code >= 80 && code <= 82) return `${CDN}/rain-${day}.svg`
+  if (code >= 85 && code <= 86) return `${CDN}/snow-${day}.svg`
+  if (code === 95) return `${CDN}/thunderstorms-${day}.svg`
+  if (code === 96 || code === 99) return `${CDN}/thunderstorms-${day}-hail.svg`
+  return `${CDN}/partly-cloudy-${day}.svg`
+}
+
+function windDirLabel(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO']
+  return dirs[Math.round(deg / 22.5) % 16]
+}
+
 function HomePage() {
   const [citiesData, setCitiesData] = useState([])
   const [areasData, setAreasData] = useState([])
@@ -91,6 +117,9 @@ function HomePage() {
   const [activeTool, setActiveTool] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
+  const [selectedDay, setSelectedDay] = useState(0)
+  const [forecast, setForecast] = useState(null)
+  const [hourly, setHourly] = useState(null)
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -109,6 +138,9 @@ function HomePage() {
         if (cities.length > 0) {
           const milano = cities.find(c => c.id === 'milano') || cities[0]
           setMainCity(milano)
+          const f = await fetchWeather(milano.latitude || 45.4654, milano.longitude || 9.1859)
+          setForecast(f.daily)
+          setHourly(f.hourly)
         }
       } catch (error) {
         console.error('Errore dashboard:', error)
@@ -131,6 +163,9 @@ function HomePage() {
       const data = await fetchWeather(place.latitude, place.longitude)
       const meta = { id: place.id, name: place.name, region: place.admin1 || place.country || 'Italia' }
       setMainCity(parseCity(data, meta))
+      setForecast(data.daily)
+      setHourly(data.hourly)
+      setSelectedDay(0)
       return true
     } catch (error) {
       console.error('Errore nel recupero dati:', error)
@@ -228,71 +263,121 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="section-grid" id="mappe">
-          <article className="panel">
+        <section className="section" id="mappe">
+          <article className="panel" style={{ width: '100%' }}>
             <div className="section-title">
               <div>
-                <p className="kicker">Italia</p>
+                <p className="kicker">{mainCity ? mainCity.name : 'Italia'}</p>
                 <h2>Previsioni della settimana</h2>
               </div>
               <a href="#citta">Tutte le localita</a>
             </div>
 
-            <div className="tabs" aria-label="Giorni previsione">
-              {forecastDays.map((day) => (
-                <button className="tab-button" type="button" key={day.label}>
-                  <span>{day.day}</span>
-                  <strong>{day.label}</strong>
-                </button>
-              ))}
-            </div>
 
-            <div className="area-grid">
-              {loading ? (
-                <p>Caricamento macro-aree...</p>
-              ) : (
-                areasData.map((area) => (
-                  <article className="area-card" key={area.id}>
-                    <small>Area</small>
-                    <strong>{area.name}</strong>
-                    <span>{area.weather_description}</span>
-                    <p>{Math.round(area.temperature)}&deg;</p>
-                  </article>
-                ))
-              )}
-            </div>
+            {forecast && hourly && mainCity ? (() => {
+              // hourly rows for selected day
+              const dayStart = selectedDay * 24
+              const dayEnd = dayStart + 24
+              const hours = Array.from({ length: 24 }, (_, h) => ({
+                hour: h,
+                time: hourly.time[dayStart + h],
+                temp: hourly.temperature_2m[dayStart + h],
+                rain: hourly.precipitation[dayStart + h],
+                wmo: hourly.weather_code[dayStart + h],
+                wind: hourly.wind_speed_10m[dayStart + h],
+                windDir: hourly.wind_direction_10m[dayStart + h],
+                isDay: hourly.is_day[dayStart + h],
+              }))
+
+              return (
+                <div style={{ marginTop: 16 }}>
+                  {/* 7-day strip */}
+                  <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 16 }}>
+                    {forecast.time.map((t, i) => {
+                      const date = new Date(t)
+                      const dayLabel = i === 0 ? 'Oggi' : i === 1 ? 'Domani' : date.toLocaleDateString('it-IT', { weekday: 'short' })
+                      const dateLabel = date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })
+                      const isSelected = selectedDay === i
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setSelectedDay(i)}
+                          style={{
+                            minWidth: 80, flex: '0 0 auto', border: 'none', borderRadius: 10, padding: '10px 8px',
+                            cursor: 'pointer', textAlign: 'center',
+                            background: isSelected ? '#0d75b8' : '#f5f9fc',
+                            color: isSelected ? 'white' : '#122033',
+                            outline: 'none',
+                          }}
+                        >
+                          <div style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: 4 }}>{dayLabel}</div>
+                          <div style={{ fontSize: '0.7rem', color: isSelected ? 'rgba(255,255,255,0.75)' : '#5e7083', marginBottom: 6 }}>{dateLabel}</div>
+                          <img
+                            src={wmoIcon(forecast.weather_code[i], 1)}
+                            alt={wmoDesc(forecast.weather_code[i])}
+                            style={{ width: 36, height: 36, display: 'block', margin: '0 auto 6px' }}
+                          />
+                          <div style={{ fontSize: '0.82rem', fontWeight: 900 }}>{Math.round(forecast.temperature_2m_max[i])}°</div>
+                          <div style={{ fontSize: '0.75rem', color: isSelected ? 'rgba(255,255,255,0.7)' : '#5e7083' }}>{Math.round(forecast.temperature_2m_min[i])}°</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Hourly table */}
+                  <div style={{ background: '#f5f9fc', borderRadius: 10, overflow: 'hidden' }}>
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: '48px 44px 1fr 72px 72px 90px',
+                      padding: '8px 16px', background: '#e4eef5',
+                      fontSize: '0.72rem', fontWeight: 850, textTransform: 'uppercase', color: '#5e7083',
+                    }}>
+                      <span>Ora</span>
+                      <span></span>
+                      <span>Condizioni</span>
+                      <span style={{ textAlign: 'right' }}>Temp</span>
+                      <span style={{ textAlign: 'right' }}>Pioggia</span>
+                      <span style={{ textAlign: 'right' }}>Vento</span>
+                    </div>
+                    {hours.map((h) => (
+                      <div
+                        key={h.hour}
+                        style={{
+                          display: 'grid', gridTemplateColumns: '48px 44px 1fr 72px 72px 90px',
+                          padding: '10px 16px', alignItems: 'center',
+                          borderBottom: '1px solid #e4eef5',
+                          background: h.hour % 2 === 0 ? 'white' : '#f5f9fc',
+                        }}
+                      >
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#5e7083' }}>
+                          {String(h.hour).padStart(2, '0')}:00
+                        </span>
+                        <img
+                          src={wmoIcon(h.wmo, h.isDay)}
+                          alt={wmoDesc(h.wmo)}
+                          style={{ width: 30, height: 30 }}
+                        />
+                        <span style={{ fontSize: '0.82rem', color: '#122033' }}>{wmoDesc(h.wmo)}</span>
+                        <span style={{ textAlign: 'right', fontWeight: 900, fontSize: '1rem', color: '#0d75b8' }}>
+                          {Math.round(h.temp)}°
+                        </span>
+                        <span style={{ textAlign: 'right', fontSize: '0.82rem', color: h.rain > 0 ? '#0d75b8' : '#aaa' }}>
+                          {h.rain.toFixed(1)} mm
+                        </span>
+                        <span style={{ textAlign: 'right', fontSize: '0.82rem', color: '#5e7083' }}>
+                          {Math.round(h.wind)} km/h {windDirLabel(h.windDir)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })() : (
+              <p style={{ color: '#5e7083', marginTop: 16 }}>Caricamento previsioni...</p>
+            )}
           </article>
 
-          <aside className="panel">
-            <div className="section-title">
-              <div>
-                <p className="kicker">Oggi</p>
-                <h2>Principali citta</h2>
-              </div>
-            </div>
-
-            {activeTool && <ToolModal toolName={activeTool} onClose={() => setActiveTool(null)} />}
-
-            <div className="forecast-grid">
-              {loading ? (
-                <p>Caricamento città...</p>
-              ) : (
-                citiesData.slice(0, 4).map((item) => (
-                  <article
-                    className="forecast-card"
-                    key={item.id}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setMainCity(item)}
-                  >
-                    <small>{item.name}</small>
-                    <strong>{Math.round(item.temperature)}&deg;</strong>
-                    <p>{item.weather_description}</p>
-                    <small>Max: {Math.round(item.temp_max)}&deg; | Min: {Math.round(item.temp_min)}&deg;</small>
-                  </article>
-                ))
-              )}
-            </div>
-          </aside>
+          
         </section>
 
         <section className="panel" id="strumenti">
