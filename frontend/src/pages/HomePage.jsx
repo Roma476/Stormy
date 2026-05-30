@@ -124,6 +124,15 @@ function HomePage() {
   useEffect(() => {
     async function fetchDashboardData() {
       try {
+        // 1. Carica Milano subito — mostra i dati senza aspettare tutto
+        const milano = FEATURED_CITIES.find(c => c.id === 'milano')
+        const milanoData = await fetchWeather(milano.latitude, milano.longitude)
+        setMainCity(parseCity(milanoData, milano))
+        setForecast(milanoData.daily)
+        setHourly(milanoData.hourly)
+        setLoading(false)
+
+        // 2. Carica il resto in background
         const [citiesResults, areasResults] = await Promise.allSettled([
           Promise.all(FEATURED_CITIES.map(c => fetchWeather(c.latitude, c.longitude).then(d => parseCity(d, c)))),
           Promise.all(MACRO_AREAS.map(a => fetchWeather(a.latitude, a.longitude).then(d => parseCity(d, a)))),
@@ -134,17 +143,8 @@ function HomePage() {
 
         setCitiesData(cities)
         setAreasData(areas)
-
-        if (cities.length > 0) {
-          const milano = cities.find(c => c.id === 'milano') || cities[0]
-          setMainCity(milano)
-          const f = await fetchWeather(milano.latitude || 45.4654, milano.longitude || 9.1859)
-          setForecast(f.daily)
-          setHourly(f.hourly)
-        }
       } catch (error) {
         console.error('Errore dashboard:', error)
-      } finally {
         setLoading(false)
       }
     }
