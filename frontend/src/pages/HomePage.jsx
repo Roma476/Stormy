@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Footer from '../components/Footer.jsx'
 import Navbar from '../components/Navbar.jsx'
 import './HomePage.css'
+import ToolModal from '../components/ToolModal.jsx'
 
 const daysIT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 const forecastDays = Array.from({ length: 7 }, (_, i) => {
@@ -14,7 +15,7 @@ const forecastDays = Array.from({ length: 7 }, (_, i) => {
 const emptyValue = '--'
 
 const tools = [
-  { name: 'Satellite', description: 'Osserva nuvole e schiarite sull Italia.' },
+  { name: 'Radar', description: 'Osserva le condizioni meteorologiche in tempo reale.' },
   { name: 'Allerte', description: 'Segui le criticita previste nelle regioni.' },
   { name: 'Pollini', description: 'Consulta i livelli utili per le allergie.' },
   { name: 'Neve', description: 'Guarda quota neve e situazione in montagna.' },
@@ -270,22 +271,7 @@ function HomePage() {
               </div>
             </div>
 
-            {activeTool && (
-              <div style={{
-                position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-                backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex',
-                justifyContent: 'center', alignItems: 'center', zIndex: 99999
-              }} onClick={() => setActiveTool(null)}>
-                <div style={{
-                  backgroundColor: 'white', padding: '50px', borderRadius: '20px',
-                  textAlign: 'center', color: 'black', fontWeight: 'bold'
-                }} onClick={e => e.stopPropagation()}>
-                  <h2>Stai usando: {activeTool}</h2>
-                  <p>Questa funzione sarà disponibile a breve!</p>
-                  <button onClick={() => setActiveTool(null)} style={{ padding: '10px 20px', cursor: 'pointer' }}>Chiudi</button>
-                </div>
-              </div>
-            )}
+            {activeTool && <ToolModal toolName={activeTool} onClose={() => setActiveTool(null)} />}
 
             <div className="forecast-grid">
               {loading ? (
