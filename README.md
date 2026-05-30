@@ -6,24 +6,25 @@ Live at: [stormy-frontend.onrender.com](https://stormy-frontend.onrender.com)
 
 > **Note:** The backend is currently not in use in production. The live version calls the Open-Meteo API directly from the frontend due to hosting limitations (IP blocks on the free tier). The FastAPI backend is fully functional locally and is intended to be the production data layer once a stable hosting solution is in place.
 
-
-
 ## About
 
-Stormy shows real-time weather data for the main Italian cities and macro-areas (North, Centre, South), powered by the [Open-Meteo](https://open-meteo.com/) API — free and no API key required. Users can also search any city by name and get current conditions instantly.
+Stormy shows real-time weather data for Italian cities. Users can search any location by name, get current conditions, and browse a 3b-meteo style 7-day forecast with hourly breakdown. Weather tools provide in-depth data for satellite radar, alerts, pollen, snow and sea conditions — all powered by Open-Meteo, free and no API key required.
 
 ## Features
 
-- **Dashboard** — current weather snapshot for Milano, Roma, Napoli and Torino, plus macro-area overviews for North, Centre and South Italy
-- **City search** — search any Italian (or world) location by name using the Open-Meteo geocoding API
-- **7-day forecast tabs** — weekly day navigation on the forecast panel
+- **Instant load** — Milano data loads first, rest populates in background
+- **City search** — search any Italian (or world) location using the Open-Meteo geocoding API
+- **7-day forecast** — day strip with Meteocons animated icons + hourly table (temp, rain, wind) in 3b-meteo style
+- **Hourly forecast** — starts from current hour for today, full 24h for future days
+- **Weather tools** — Radar (Windy embed), Allerte, Pollini, Neve, Mari — each with real Open-Meteo data
 - **Quick city links** — one-click weather for 12 major Italian cities
-- **Tool cards** — placeholders for future features: Satellite, Allerte, Pollini, Neve, Mari
 
 ## Tech Stack
 
 **Frontend**
 - React 19, Vite 8, plain CSS
+- [Meteocons](https://meteocons.com/) animated SVG weather icons
+- [Windy](https://www.windy.com/) embed for radar/satellite
 - Hosted on Render Static Site
 
 **Backend**
@@ -32,7 +33,9 @@ Stormy shows real-time weather data for the main Italian cities and macro-areas 
 - Hosted on Render Web Service
 
 **Data**
-- [Open-Meteo Forecast API](https://open-meteo.com/en/docs) — weather data
+- [Open-Meteo Forecast API](https://open-meteo.com/en/docs) — weather + hourly data
+- [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) — pollen data
+- [Open-Meteo Marine API](https://open-meteo.com/en/docs/marine-weather-api) — sea conditions
 - [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api) — city search
 
 ## Repository Structure
@@ -40,8 +43,8 @@ Stormy shows real-time weather data for the main Italian cities and macro-areas 
 ```
 ├── frontend/
 │   ├── src/
-│   │   ├── components/     — Navbar, Footer
-│   │   └── pages/          — HomePage (main view)
+│   │   ├── components/     — Navbar, Footer, ToolModal
+│   │   └── pages/          — HomePage, AboutPage
 │   ├── index.html
 │   └── package.json
 └── backend/
