@@ -15,7 +15,7 @@ const forecastDays = Array.from({ length: 7 }, (_, i) => {
 const emptyValue = '--'
 
 const tools = [
-  { name: 'Satellite', description: 'Osserva nuvole e schiarite sull Italia.' },
+  { name: 'Radar', description: 'Osserva le condizioni meteorologiche in tempo reale.' },
   { name: 'Allerte', description: 'Segui le criticita previste nelle regioni.' },
   { name: 'Pollini', description: 'Consulta i livelli utili per le allergie.' },
   { name: 'Neve', description: 'Guarda quota neve e situazione in montagna.' },
@@ -92,15 +92,15 @@ function wmoIcon(code, isDay = 1) {
   if (code === 0) return `${CDN}/clear-${day}.svg`
   if (code === 1) return `${CDN}/partly-cloudy-${day}.svg`
   if (code === 2) return `${CDN}/partly-cloudy-${day}.svg`
-  if (code === 3) return `${CDN}/overcast-${day}.svg`
-  if (code === 45 || code === 48) return `${CDN}/fog-${day}.svg`
-  if (code >= 51 && code <= 55) return `${CDN}/drizzle.svg`
+  if (code === 3) return `${CDN}/overcast.svg`
+  if (code === 45 || code === 48) return `${CDN}/fog.svg`
+  if (code >= 51 && code <= 55) return `${CDN}/partly-cloudy-${day}-drizzle.svg`
   if (code >= 61 && code <= 65) return `${CDN}/rain.svg`
   if (code >= 71 && code <= 77) return `${CDN}/snow.svg`
-  if (code >= 80 && code <= 82) return `${CDN}/rain-${day}.svg`
-  if (code >= 85 && code <= 86) return `${CDN}/snow-${day}.svg`
-  if (code === 95) return `${CDN}/thunderstorms-${day}.svg`
-  if (code === 96 || code === 99) return `${CDN}/thunderstorms-${day}-hail.svg`
+  if (code >= 80 && code <= 82) return `${CDN}/partly-cloudy-${day}-rain.svg`
+  if (code >= 85 && code <= 86) return `${CDN}/partly-cloudy-${day}-snow.svg`
+  if (code === 95) return `${CDN}/thunderstorms.svg`
+  if (code === 96 || code === 99) return `${CDN}/thunderstorms-rain.svg`
   return `${CDN}/partly-cloudy-${day}.svg`
 }
 
@@ -278,6 +278,7 @@ function HomePage() {
               // hourly rows for selected day
               const dayStart = selectedDay * 24
               const dayEnd = dayStart + 24
+              const currentHour = selectedDay === 0 ? new Date().getHours() : 0
               const hours = Array.from({ length: 24 }, (_, h) => ({
                 hour: h,
                 time: hourly.time[dayStart + h],
@@ -287,7 +288,7 @@ function HomePage() {
                 wind: hourly.wind_speed_10m[dayStart + h],
                 windDir: hourly.wind_direction_10m[dayStart + h],
                 isDay: hourly.is_day[dayStart + h],
-              }))
+              })).filter(h => h.hour >= currentHour)
 
               return (
                 <div style={{ marginTop: 16 }}>
@@ -424,6 +425,7 @@ function HomePage() {
             ))}
           </div>
         </section>
+      {activeTool && <ToolModal toolName={activeTool} onClose={() => setActiveTool(null)} />}
       </main>
 
       <Footer />
